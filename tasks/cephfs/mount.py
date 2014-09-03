@@ -98,8 +98,12 @@ class CephFSMount(object):
 
     def _run_python(self, pyscript):
         return self.client_remote.run(args=[
-            'sudo', 'daemon-helper', 'kill', 'python', '-c', pyscript
+            'sudo', 'adjust-ulimits', 'daemon-helper', 'kill', 'python', '-c', pyscript
         ], wait=False, stdin=run.PIPE)
+
+    def run_shell(self, args):
+        args = ["cd", self.mountpoint, run.Raw('&&')] + args
+        return self.client_remote.run(args=args)
 
     def open_background(self, basename="background_file"):
         """
@@ -142,6 +146,40 @@ class CephFSMount(object):
             f.write('content')
             f.close()
             """).format(path=path)
+
+        rproc = self._run_python(pyscript)
+        self.background_procs.append(rproc)
+        return rproc
+
+    def open_n_background(self, basename, count):
+        """
+        Open N files for writing, hold them open in a background process
+
+        :return: a RemoteProcess
+        """
+        assert(self.is_mounted())
+
+        path = os.path.join(self.mountpoint, basename)
+
+        pyscript = dedent("""
+            import sys
+            import time
+            import os
+
+            n = {count}
+            prefix = "{prefix}"
+
+            if not os.path.exists(os.path.dirname(prefix)):
+                os.makedirs(os.path.dirname(prefix))
+
+            handles = []
+            for i in range(0, n):
+                fname = "{{0}}_{{1}}".format(prefix, i)
+                handles.append(open(fname, 'w'))
+
+            while True:
+                time.sleep(1)
+            """).format(prefix=path, count=count)
 
         rproc = self._run_python(pyscript)
         self.background_procs.append(rproc)
