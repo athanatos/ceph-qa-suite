@@ -39,7 +39,7 @@ class TestClientRecovery(CephFSTestCase):
         self.mount_a.mount()
         self.mount_b.mount()
         self.mount_a.wait_until_mounted()
-        self.mount_a.wait_until_mounted()
+        self.mount_b.wait_until_mounted()
 
     def tearDown(self):
         self.fs.clear_firewall()
