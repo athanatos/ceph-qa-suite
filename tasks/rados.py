@@ -134,6 +134,14 @@ def task(ctx, config):
         'ceph-coverage',
         '{tdir}/archive/coverage'.format(tdir=testdir),
         'ceph_test_rados']
+
+    if 'read' not in op_weights:
+        op_weights['read'] = 100
+    if 'write' not in op_weights:
+        op_weights['write'] = 100
+    if 'delete' not in op_weights:
+        op_weights['delete'] = 100
+
     if config.get('ec_pool', False):
         args.extend(['--ec-pool'])
     if config.get('write_fadvise_dontneed', False):
@@ -141,9 +149,6 @@ def task(ctx, config):
     if config.get('pool_snaps', False):
         args.extend(['--pool-snaps'])
     args.extend([
-        '--op', 'read', str(op_weights.get('read', 100)),
-        '--op', 'write', str(op_weights.get('write', 100)),
-        '--op', 'delete', str(op_weights.get('delete', 10)),
         '--max-ops', str(config.get('ops', 10000)),
         '--objects', str(config.get('objects', 500)),
         '--max-in-flight', str(config.get('max_in_flight', 16)),
@@ -152,30 +157,19 @@ def task(ctx, config):
         '--max-stride-size', str(config.get('max_stride_size', object_size / 5)),
         '--max-seconds', str(config.get('max_seconds', 0))
         ])
+
+    if ('write' in op_weights) and ('write_excl' not in op_weights):
+        op_weights['write'] = int(op_weights['write']/2)
+        op_weights['write_excl'] = op_weights['write']
+    if ('append' in op_weights) and ('append_excl' not in op_weights):
+        op_weights['append'] = int(op_weights['append']/2)
+        op_weights['append_excl'] = op_weights['append']
+
     # Parallel of the op_types in test/osd/TestRados.cc
-    for field in [
-        # read handled above
-        # write handled above
-        # delete handled above
-        "snap_create",
-        "snap_remove",
-        "rollback",
-        "setattr",
-        "rmattr",
-        "watch",
-        "copy_from",
-        "hit_set_list",
-        "is_dirty",
-        "undirty",
-        "cache_flush",
-        "cache_try_flush",
-        "cache_evict",
-        "append",
-        ]:
-        if field in op_weights:
-            args.extend([
-                    '--op', field, str(op_weights[field]),
-                    ])
+    for k, v in op_weights.iteritems():
+        args.extend([
+            '--op', k, str(v),
+        ])
 
     def thread():
         """Thread spawned by gevent"""
